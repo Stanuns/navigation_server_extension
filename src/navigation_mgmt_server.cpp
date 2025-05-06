@@ -6,6 +6,7 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <memory>
 #include <vector>
+#include <rclcpp/executors.hpp>
 
 /***
  *  navigation2 service server
@@ -18,7 +19,7 @@ using GoalHandleFollowWaypoints = rclcpp_action::ClientGoalHandle<FollowWaypoint
 class NavigationMgmtServer : public rclcpp::Node
 {
 public:
-    NavigationMgmtServer() : Node("navigation_mgmt_server")
+    NavigationMgmtServer() : Node("navigation_mgmt_server"), executor_(std::make_shared<rclcpp::executors::SingleThreadedExecutor>())
     {
         // Initialize action client for FollowWaypoints
         action_client_ = rclcpp_action::create_client<FollowWaypoints>(
@@ -36,6 +37,7 @@ private:
     rclcpp::Service<NavigationServer>::SharedPtr service_;
     GoalHandleFollowWaypoints::SharedPtr goal_handle_;
     // std::shared_ptr<NavigationServer::Response> active_response_;
+    rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
 
     void handle_service_request(
         const std::shared_ptr<NavigationServer::Request> request,
@@ -45,9 +47,21 @@ private:
 
         switch (request->cmd_name) {
             case 1:  // Send poses list 并开始导航
-                send_waypoints(request->poses_list, response);
-                
-                RCLCPP_INFO(get_logger(), "send_waypoints......");
+                try{
+                    send_waypoints(request->poses_list, response);
+                }catch (const std::exception& e) {
+                    response->result = false;
+                    response->message = std::string("Error in send_waypoints: ") + e.what();
+                    RCLCPP_ERROR(get_logger(), "send_waypoints error: %s", e.what());
+                    break;
+                } catch (...) {
+                    response->result = false;
+                    response->message = "Unknown error in send_waypoints";
+                    RCLCPP_ERROR(get_logger(), "Unknown error in send_waypoints");
+                    break;
+                }
+                response->result = true;
+                response->message = std::string("Send navigation2 waypoints successfully");
                 break;
             case 2:  // Pause
                 // Implement pause logic if needed
@@ -60,7 +74,21 @@ private:
                 response->message = "Resume command received";
                 break;
             case 4:  // Cancel current list
-                cancel_navigation(response);
+                try{
+                    cancel_navigation(response);
+                }catch (const std::exception& e) {
+                    response->result = false;
+                    response->message = std::string("Error in cancel current list: ") + e.what();
+                    RCLCPP_ERROR(get_logger(), "Cancel current list error: %s", e.what());
+                    break;
+                } catch (...) {
+                    response->result = false;
+                    response->message = "Unknown error in cancel current list";
+                    RCLCPP_ERROR(get_logger(), "Unknown error in cancel current list");
+                    break;
+                }
+                response->result = true;
+                response->message = "Navigation canceled successfully";
                 break;
             case 5:  // Manual re-localization
                 // Implement re-localization logic
@@ -79,12 +107,13 @@ private:
         std::shared_ptr<NavigationServer::Response> response)
     {
         if (!action_client_->wait_for_action_server(std::chrono::seconds(5))) {
-            response->result = false;
-            response->message = "Action server not available";
-            return;
+            throw std::runtime_error("Action server not available");
         }
 
         auto goal_msg = FollowWaypoints::Goal();
+        if (poses.empty()) {
+            throw std::runtime_error("Empty poses list provided");
+        }
         for (const auto& pose : poses) {
             geometry_msgs::msg::PoseStamped pose_stamped;
             pose_stamped.pose = pose;
@@ -97,29 +126,24 @@ private:
         send_goal_options.goal_response_callback =
             [this, response](const GoalHandleFollowWaypoints::SharedPtr& goal_handle) {
                 if (!goal_handle) {
-                    response->result = false;
-                    response->message = "Goal was rejected by server";
-
-                    RCLCPP_INFO(get_logger(), "goal_response_callback...goal_handle is false...");
+                    RCLCPP_INFO(get_logger(), "Goal was rejected by server...");
+                    throw std::runtime_error("Goal was rejected by server...");
                 } else {
                     this->goal_handle_ = goal_handle;
-                    response->result = true;
-                    response->message = "Goal accepted by server, processing...";
-
-                    RCLCPP_INFO(get_logger(), "goal_response_callback......");
+                    RCLCPP_INFO(get_logger(), "Goal accepted by server, processing...");
                 }
             };
 
-            send_goal_options.feedback_callback =
-                [this](GoalHandleFollowWaypoints::SharedPtr,
-                    const std::shared_ptr<const FollowWaypoints::Feedback> feedback) {
-                    // RCLCPP_INFO(get_logger(), "Current waypoint: %d",
-                    //         feedback->current_waypoint);
-                    // if (active_response_) {
-                    //     active_response_->message = "Current waypoint: " + 
-                    //                             std::to_string(feedback->current_waypoint);
-                    // }
-                };
+        send_goal_options.feedback_callback =
+            [this](GoalHandleFollowWaypoints::SharedPtr,
+                const std::shared_ptr<const FollowWaypoints::Feedback> feedback) {
+                RCLCPP_INFO(get_logger(), "Current waypoint: %d",
+                        feedback->current_waypoint);
+                // if (active_response_) {
+                //     active_response_->message = "Current waypoint: " + 
+                //                             std::to_string(feedback->current_waypoint);
+                // }
+            };
 
         send_goal_options.result_callback =
             [this](const GoalHandleFollowWaypoints::WrappedResult& result) {
@@ -129,6 +153,7 @@ private:
                     case rclcpp_action::ResultCode::SUCCEEDED:
                         // active_response_->result = true;
                         // active_response_->message = "Navigation succeeded";
+                        RCLCPP_INFO(get_logger(), "Navigation all points succeeded");
                         break;
                     case rclcpp_action::ResultCode::ABORTED:
                         // active_response_->result = false;
@@ -137,6 +162,7 @@ private:
                     case rclcpp_action::ResultCode::CANCELED:
                         // active_response_->result = false;
                         // active_response_->message = "Navigation canceled";
+                        RCLCPP_INFO(get_logger(), "Navigation all points canceled");
                         break;
                     default:
                         // active_response_->result = false;
@@ -147,28 +173,40 @@ private:
             };
 
         auto future_goal_handle = action_client_->async_send_goal(goal_msg, send_goal_options);
+
     }
 
     void cancel_navigation(std::shared_ptr<NavigationServer::Response> response)
     {
         if (!goal_handle_) {
-            response->result = false;
-            response->message = "No active navigation to cancel";
-            return;
+            throw std::runtime_error("No active navigation to cancel");
         }
 
         auto future_cancel = action_client_->async_cancel_goal(goal_handle_);
-        if (rclcpp::spin_until_future_complete(
-                shared_from_this(), future_cancel) != rclcpp::FutureReturnCode::SUCCESS) {
-            response->result = false;
-            response->message = "Failed to cancel navigation";
-            return;
-        }
 
-        goal_handle_.reset();
-        response->result = true;
-        response->message = "Navigation canceled successfully";
+        // if (rclcpp::spin_until_future_complete(
+        //         shared_from_this(), future_cancel) != rclcpp::FutureReturnCode::SUCCESS) {
+        //     throw std::runtime_error("Failed to cancel navigation");
+        // }
+        // if (rclcpp::ok() && executor_->spin_until_future_complete(future_cancel, std::chrono::seconds(5)) 
+        //         != rclcpp::FutureReturnCode::SUCCESS) {
+        //     throw std::runtime_error("Failed to cancel navigation");
+        // }
+
+        auto result = executor_->spin_until_future_complete(future_cancel, std::chrono::seconds(1));
+        if (!rclcpp::ok()) {
+            throw std::runtime_error("ROS context shutdown during cancellation");
+        }
+        // if (result == rclcpp::FutureReturnCode::TIMEOUT) {
+        //     RCLCPP_ERROR(get_logger(), "Cancel request timed out");
+        //     throw std::runtime_error("Cancel navigation timeout");
+        // }
+        // else if (result != rclcpp::FutureReturnCode::SUCCESS) {
+        //     RCLCPP_ERROR(get_logger(), "Cancel request failed (return code: %d)", static_cast<int>(result));
+        //     throw std::runtime_error("Failed to cancel navigation");
+        // }
         
+        goal_handle_.reset();
     }
 };
 
