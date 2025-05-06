@@ -15,10 +15,10 @@ using NavigationServer = robot_interfaces::srv::NavigationServer;
 using FollowWaypoints = nav2_msgs::action::FollowWaypoints;
 using GoalHandleFollowWaypoints = rclcpp_action::ClientGoalHandle<FollowWaypoints>;
 
-class NavigationServerNode : public rclcpp::Node
+class NavigationMgmtServer : public rclcpp::Node
 {
 public:
-    NavigationServerNode() : Node("navigation_mgmt_server")
+    NavigationMgmtServer() : Node("navigation_mgmt_server")
     {
         // Initialize action client for FollowWaypoints
         action_client_ = rclcpp_action::create_client<FollowWaypoints>(
@@ -27,7 +27,7 @@ public:
         // Create service server
         service_ = create_service<NavigationServer>(
             "navigation_server",
-            std::bind(&NavigationServerNode::handle_service_request, this,
+            std::bind(&NavigationMgmtServer::handle_service_request, this,
                      std::placeholders::_1, std::placeholders::_2));
     }
 
@@ -35,17 +35,18 @@ private:
     rclcpp_action::Client<FollowWaypoints>::SharedPtr action_client_;
     rclcpp::Service<NavigationServer>::SharedPtr service_;
     GoalHandleFollowWaypoints::SharedPtr goal_handle_;
-    std::shared_ptr<NavigationServer::Response> active_response_;
+    // std::shared_ptr<NavigationServer::Response> active_response_;
 
     void handle_service_request(
         const std::shared_ptr<NavigationServer::Request> request,
         std::shared_ptr<NavigationServer::Response> response)
     {
-        active_response_ = response;
+        // active_response_ = response;
 
         switch (request->cmd_name) {
             case 1:  // Send poses list 并开始导航
                 send_waypoints(request->poses_list, response);
+                
                 RCLCPP_INFO(get_logger(), "send_waypoints......");
                 break;
             case 2:  // Pause
@@ -114,32 +115,32 @@ private:
                     const std::shared_ptr<const FollowWaypoints::Feedback> feedback) {
                     // RCLCPP_INFO(get_logger(), "Current waypoint: %d",
                     //         feedback->current_waypoint);
-                    if (active_response_) {
-                        active_response_->message = "Current waypoint: " + 
-                                                std::to_string(feedback->current_waypoint);
-                    }
+                    // if (active_response_) {
+                    //     active_response_->message = "Current waypoint: " + 
+                    //                             std::to_string(feedback->current_waypoint);
+                    // }
                 };
 
         send_goal_options.result_callback =
             [this](const GoalHandleFollowWaypoints::WrappedResult& result) {
-                if (!active_response_) return;
+                // if (!active_response_) return;
                 
                 switch (result.code) {
                     case rclcpp_action::ResultCode::SUCCEEDED:
-                        active_response_->result = true;
-                        active_response_->message = "Navigation succeeded";
+                        // active_response_->result = true;
+                        // active_response_->message = "Navigation succeeded";
                         break;
                     case rclcpp_action::ResultCode::ABORTED:
-                        active_response_->result = false;
-                        active_response_->message = "Navigation aborted";
+                        // active_response_->result = false;
+                        // active_response_->message = "Navigation aborted";
                         break;
                     case rclcpp_action::ResultCode::CANCELED:
-                        active_response_->result = false;
-                        active_response_->message = "Navigation canceled";
+                        // active_response_->result = false;
+                        // active_response_->message = "Navigation canceled";
                         break;
                     default:
-                        active_response_->result = false;
-                        active_response_->message = "Unknown result";
+                        // active_response_->result = false;
+                        // active_response_->message = "Unknown result";
                         break;
                 }
                 this->goal_handle_.reset();
@@ -174,7 +175,7 @@ private:
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<NavigationServerNode>();
+    auto node = std::make_shared<NavigationMgmtServer>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
