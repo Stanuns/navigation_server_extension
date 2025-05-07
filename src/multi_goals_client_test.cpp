@@ -34,10 +34,10 @@ private:
         
         if (cmd == 1) {
             // Create three sample waypoints
-            geometry_msgs::msg::Pose pose1, pose2, pose3;
+            geometry_msgs::msg::Pose pose1, pose2, pose3, pose4, pose5, pose6, pose7, pose8, pose9, pose10;
             
             // Waypoint 1
-            pose1.position.x = 0.10487;
+            pose1.position.x = 0.25487;
             pose1.position.y = 0.36428;
             pose1.position.z = 0.0;
             pose1.orientation.z = -0.85467;
@@ -51,13 +51,62 @@ private:
             pose2.orientation.w = 0.51918;
             
             // Waypoint 3
-            pose3.position.x = -0.10;
+            pose3.position.x = -0.25;
             pose3.position.y = -0.42;
             pose3.position.z = 0.0;
             pose3.orientation.z = -0.85467;
             pose3.orientation.w = 0.51918;
+
+            // Waypoint 4
+            pose4.position.x = -0.31;
+            pose4.position.y = -0.73;
+            pose4.position.z = 0.0;
+            pose4.orientation.z = 0.988871;
+            pose4.orientation.w = -0.148777;
+
+            // Waypoint 5
+            pose5.position.x = 0.20;
+            pose5.position.y = 0.313;
+            pose5.position.z = 0.0;
+            pose5.orientation.z = 0.520416;
+            pose5.orientation.w = 0.853913;
+
+            // Waypoint 6
+            pose6.position.x = 0.42537;
+            pose6.position.y = 0.78219;
+            pose6.position.z = 0.0;
+            pose6.orientation.z = 0.456265;
+            pose6.orientation.w = 0.889844;
+
+            // Waypoint 7
+            pose7.position.x = -0.37;
+            pose7.position.y = -0.87;
+            pose7.position.z = 0.0;
+            pose7.orientation.z = -0.838048;
+            pose7.orientation.w = 0.545596;
+
+            // Waypoint 8
+            pose8.position.x = 0.057;
+            pose8.position.y = -0.09;
+            pose8.position.z = 0.0;
+            pose8.orientation.z = -0.85467;
+            pose8.orientation.w = 0.51918;
+
+            // Waypoint 9
+            pose9.position.x = 0.20;
+            pose9.position.y = 0.313;
+            pose9.position.z = 0.0;
+            pose9.orientation.z = 0.520416;
+            pose9.orientation.w = 0.853913;
+
+            // Waypoint 10
+            pose10.position.x = -0.31;
+            pose10.position.y = -0.73;
+            pose10.position.z = 0.0;
+            pose10.orientation.z = 0.988871;
+            pose10.orientation.w = -0.148777;
             
-            request->poses_list = {pose1, pose2, pose3};
+            request->poses_list = {pose1, pose2, pose3, pose4, pose5, pose6, pose7, pose8, pose9, pose10};
         }
 
         auto result_future = client_->async_send_request(request);
