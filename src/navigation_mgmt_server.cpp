@@ -8,6 +8,8 @@
 #include <vector>
 #include <rclcpp/executors.hpp>
 #include "robot_interfaces/msg/navigation_state.hpp"
+#include "nav2_msgs/srv/set_initial_pose.hpp"
+#include <chrono>
 
 /***
  *  navigation2 service server
@@ -17,12 +19,16 @@ using NavigationServer = robot_interfaces::srv::NavigationServer;
 using FollowWaypoints = nav2_msgs::action::FollowWaypoints;
 using GoalHandleFollowWaypoints = rclcpp_action::ClientGoalHandle<FollowWaypoints>;
 using namespace std::placeholders;
+using namespace rclcpp;
+using namespace std::chrono_literals;
 
 class NavigationMgmtServer : public rclcpp::Node
 {
 public:
     NavigationMgmtServer() : Node("navigation_mgmt_server")//, executor_(std::make_shared<rclcpp::executors::SingleThreadedExecutor>())
     {
+        relocalize_publisher_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("/initialpose", 10);
+
         nav_state_publisher_ = create_publisher<robot_interfaces::msg::NavigationState>("/nav_state", 10);
         timer_ = this->create_wall_timer(
             200ms, std::bind(&NavigationMgmtServer::NavigationStateCallback, this));  
@@ -52,6 +58,7 @@ private:
     Publisher<robot_interfaces::msg::NavigationState>::SharedPtr nav_state_publisher_;
     bool is_paused_ = false;
     std::vector<geometry_msgs::msg::PoseStamped> current_waypoints_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr relocalize_publisher_;
 
     void handle_service_request(
         const std::shared_ptr<NavigationServer::Request> request,
@@ -120,7 +127,7 @@ private:
                 break;
             case 5:  // Manual re-localization
                 try {
-                    relocalize_robot(request->pose_estimate, response);
+                    relocalize_robot(request->pose_estimate);
                 } catch (const std::exception& e) {
                     response->result = false;
                     response->message = std::string("Error in re-localization: ") + e.what();
@@ -167,7 +174,7 @@ private:
         // send_goal_options.result_callback =
         //     std::bind(&NavigationMgmtServer::result_callback, this, _1);
         send_goal_options.goal_response_callback =
-            [this, response](const GoalHandleFollowWaypoints::SharedPtr& goal_handle) {
+            [this](const GoalHandleFollowWaypoints::SharedPtr& goal_handle) {
                 if (!goal_handle) {
                     RCLCPP_INFO(get_logger(), "Goal was rejected by server...");
                     nav_state_.state = -1;
@@ -176,7 +183,7 @@ private:
                     this->goal_handle_ = goal_handle;
                     RCLCPP_INFO(get_logger(), "Goal accepted by server, processing...");
                     nav_state_.state = 1;
-                    nav_state_.goals_num = current_waypoints_.poses.size();
+                    nav_state_.goals_num = current_waypoints_.size();
                     nav_state_.current_goal_index = 1;
                 }
             };
@@ -292,7 +299,7 @@ private:
 
         auto send_goal_options = rclcpp_action::Client<FollowWaypoints>::SendGoalOptions();
         send_goal_options.goal_response_callback =
-            [this, response](const GoalHandleFollowWaypoints::SharedPtr& goal_handle) {
+            [this](const GoalHandleFollowWaypoints::SharedPtr& goal_handle) {
                 if (!goal_handle) {
                     nav_state_.state = -1;
                     throw std::runtime_error("Goal was rejected by server...");
@@ -340,31 +347,17 @@ private:
 
     void relocalize_robot(const geometry_msgs::msg::Pose& pose_estimate)
     {
-        // Create a service client for the re-localization service
-        auto client = this->create_client<std_srvs::srv::Trigger>("reinitialize_global_localization");
-        
-        if (!client->wait_for_service(std::chrono::seconds(5))) {
-            throw std::runtime_error("Re-localization service not available");
+        if(pose_estimate.orientation.z == 0.0 && pose_estimate.orientation.w == 0.0){
+            throw std::invalid_argument("Pose estimate message is fault or can be empty");
         }
+        //设置重定位点，只需要向topic /initialpose发布pose
+        auto pose_msg = geometry_msgs::msg::PoseWithCovarianceStamped();
+        pose_msg.header.stamp = this->now();
+        pose_msg.header.frame_id = "map"; // 通常使用 map 坐标系
+        pose_msg.pose.pose = pose_estimate;
+        relocalize_publisher_->publish(pose_msg);
 
-        auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-        auto future = client->async_send_request(request);
-
-        // Wait for the result (with timeout)
-        if (rclcpp::spin_until_future_complete(
-            this->get_node_base_interface(), future, std::chrono::seconds(5)) 
-        {
-            auto result = future.get();
-            if (!result->success) {
-                throw std::runtime_error("Re-localization service failed");
-            }
-        } else {
-            throw std::runtime_error("Re-localization service timed out");
-        }
-
-        // Optionally set the initial pose (if your system supports it)
-        // You might need to create another service client for this
-        RCLCPP_INFO(get_logger(), "Re-localization completed successfully");
+        RCLCPP_INFO(this->get_logger(), "Successfully set initial pose");
     }
 };
 
