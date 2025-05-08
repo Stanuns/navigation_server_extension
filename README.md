@@ -1,4 +1,8 @@
 # navigation_server_extension
+- 启动节点
+```bashrc
+ros2 run navigation_server_extension navigation_mgmt_server
+```
 ## 导航服务接口
 ### 1 下发list进行导航
 调用service名称: /navigation_server

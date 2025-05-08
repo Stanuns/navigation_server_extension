@@ -19,6 +19,8 @@ find_package(robot_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -55,8 +57,20 @@ ament_target_dependencies(multi_goals_client_test
   std_srvs
   nav_msgs
 )
+add_executable(navigation_monitor src/navigation_monitor.cpp)
+ament_target_dependencies(navigation_monitor
+  robot_interfaces
+  rclcpp
+  rclcpp_action
+  rclcpp_components
+  nav2_msgs
+  std_srvs
+  nav_msgs
+  lifecycle_msgs
+  std_msgs
+)
 
-install(TARGETS navigation_mgmt_server multi_goals_client_test
+install(TARGETS navigation_mgmt_server multi_goals_client_test navigation_monitor
     DESTINATION lib/${PROJECT_NAME}
 )
 install(
