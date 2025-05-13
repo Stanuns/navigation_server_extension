@@ -73,9 +73,9 @@ ament_target_dependencies(navigation_monitor
 install(TARGETS navigation_mgmt_server multi_goals_client_test navigation_monitor
     DESTINATION lib/${PROJECT_NAME}
 )
-install(
-        DIRECTORY launch
-        DESTINATION share/${PROJECT_NAME}
-)
+# install(
+#         DIRECTORY launch
+#         DESTINATION share/${PROJECT_NAME}
+# )
 
 ament_package()

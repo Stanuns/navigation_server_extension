@@ -1,5 +1,5 @@
 #include <rclcpp/rclcpp.hpp>
-#include "robot_interfaces/srv/navigation_server.hpp"
+#include "robot_interfaces/srv/navi_server.hpp"
 #include <geometry_msgs/msg/pose.hpp>
 #include <chrono>
 
@@ -10,7 +10,7 @@ class MultiGoalsNavigationClient : public rclcpp::Node
 public:
     MultiGoalsNavigationClient() : Node("multi_goals_client_test")
     {
-        client_ = create_client<robot_interfaces::srv::NavigationServer>("navigation_server");
+        client_ = create_client<robot_interfaces::srv::NaviServer>("navigation_server");
         
         // Wait for service to be available
         while (!client_->wait_for_service(1s)) {
@@ -25,11 +25,11 @@ public:
     }
 
 private:
-    rclcpp::Client<robot_interfaces::srv::NavigationServer>::SharedPtr client_;
+    rclcpp::Client<robot_interfaces::srv::NaviServer>::SharedPtr client_;
 
     void send_request(uint32_t cmd)
     {
-        auto request = std::make_shared<robot_interfaces::srv::NavigationServer::Request>();
+        auto request = std::make_shared<robot_interfaces::srv::NaviServer::Request>();
         request->cmd_name = cmd;
         
         if (cmd == 1) {

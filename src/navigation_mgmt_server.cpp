@@ -1,6 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/trigger.hpp>
-#include "robot_interfaces/srv/navigation_server.hpp"
+#include "robot_interfaces/srv/navi_server.hpp"
 #include "nav2_msgs/action/follow_waypoints.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include <rclcpp_action/rclcpp_action.hpp>
@@ -16,7 +16,7 @@
  *  navigation2 service server
  */
 
-using NavigationServer = robot_interfaces::srv::NavigationServer;
+using NavigationServer = robot_interfaces::srv::NaviServer;
 using FollowWaypoints = nav2_msgs::action::FollowWaypoints;
 using GoalHandleFollowWaypoints = rclcpp_action::ClientGoalHandle<FollowWaypoints>;
 using namespace std::placeholders;
